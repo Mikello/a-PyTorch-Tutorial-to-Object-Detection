@@ -51,10 +51,15 @@ class BasicBlock(nn.Module):
         return out
 
 
-
 class tuned_ResNet18(nn.Module):
+    """
+    state принимает одно из следующих значений  
+    - None без инициализации  
+    - Pretrained веса инициализируются из предтренированной модели  
+    - Load Загрузить ранее сохраненные веса из из файла указанного в переменной path
+    """
 
-    def __init__(self, state = 'None', model_path = None):
+    def __init__(self, state = 'Pretrained', model_path = None):
         assert state in load_state
         
         block = BasicBlock
@@ -158,15 +163,7 @@ class tuned_ResNet18(nn.Module):
 
         return out1, out2
 
-
-def tuned_resnet18(pretrained=False, **kwargs):
-    
-    model = tuned_ResNet18(BasicBlock, [2, 2, 2], **kwargs)
-    if pretrained:
-        model.load_pretrained_layers()
-        #model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
-    return model
-
+'''
 if __name__ == '__main__':
     inp = torch.randn(1, 3, 480, 300)
     model_resnet = tuned_ResNet18(state = 'Pretrained')
@@ -178,3 +175,4 @@ if __name__ == '__main__':
     model_resnet = tuned_ResNet18(state = 'Load', model_path = path_to_save + 'model.pkl')
     out1, out2 = model_resnet(inp)
     print(out1.shape, out2.shape)
+ '''

@@ -62,6 +62,7 @@ def main():
 
     # Move to default device
     model = model.to(device)
+    print(device)
     criterion = MultiBoxLoss(priors_cxcy=model.priors_cxcy).to(device)
 
     # Custom dataloaders
@@ -93,7 +94,7 @@ def main():
               epoch=epoch)
 
         # Save checkpoint
-        save_checkpoint(epoch, model, optimizer)
+        save_checkpoint(epoch, model, optimizer, data_folder + 'data/' + 'checkpoint_ssd300.pth.tar')
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
