@@ -8,7 +8,7 @@ model_urls = {
 'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth'
 }
 
-path_to_save = "/home/z/project/ssd300/data/"
+path_to_save = "./data/"
 
 load_state = {'None', 'Pretrained', 'Load'}
 

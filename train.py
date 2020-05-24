@@ -2,6 +2,8 @@ import time
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+import pickle
+import os.path
 from model import SSD300, MultiBoxLoss
 from datasets import PascalVOCDataset
 from utils import *
@@ -16,7 +18,7 @@ n_classes = len(label_map)  # number of different types of objects
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Learning parameters
-checkpoint = None  # path to model checkpoint, None if none
+checkpoint = './data/checkpoint_ssd300.pth.tar'#None  # path to model checkpoint, None if none
 batch_size = 8  # batch size
 iterations = 120000  # number of iterations to train
 workers = 4  # number of workers for loading data in the DataLoader
@@ -37,8 +39,14 @@ def main():
     """
     global start_epoch, label_map, epoch, checkpoint, decay_lr_at
 
+    loss_epoch = []
+    epoch_time = []
+    loss_inter = []
+    
     # Initialize model or load checkpoint
-    if checkpoint is None:
+    
+
+    if os.path.exists(checkpoint) == False:
         start_epoch = 0
         model = SSD300(n_classes=n_classes)
         # Initialize the optimizer, with twice the default learning rate for biases, as in the original Caffe repo
@@ -59,6 +67,13 @@ def main():
         print('\nLoaded checkpoint from epoch %d.\n' % start_epoch)
         model = checkpoint['model']
         optimizer = checkpoint['optimizer']
+        try:
+            with open('./data/' + 'data.pickle', 'rb') as f:
+                data_new = pickle.load(f)
+                loss_epoch, epoch_time, loss_inter = zip(data_new)
+            print("Load history file")
+        except:
+            print("History file not available")
 
     # Move to default device
     model = model.to(device)
@@ -78,7 +93,8 @@ def main():
     # The paper trains for 120,000 iterations with a batch size of 32, decays after 80,000 and 100,000 iterations
     epochs = iterations // (len(train_dataset) // 32)
     decay_lr_at = [it // (len(train_dataset) // 32) for it in decay_lr_at]
-
+    
+    epochs = 15
     # Epochs
     for epoch in range(start_epoch, epochs):
 
@@ -87,12 +103,17 @@ def main():
             adjust_learning_rate(optimizer, decay_lr_to)
 
         # One epoch's training
-        train(train_loader=train_loader,
+        ret = train(train_loader=train_loader,
               model=model,
               criterion=criterion,
               optimizer=optimizer,
               epoch=epoch)
-
+        
+        loss_epoch.append(ret[0])
+        epoch_time.append(ret[1])
+        loss_inter.append(ret[2])
+        with open('data/' + 'data.pickle', 'wb') as f:
+            pickle.dump([loss_epoch, epoch_time, loss_inter], f)
         # Save checkpoint
         save_checkpoint(epoch, model, optimizer, data_folder + 'data/' + 'checkpoint_ssd300.pth.tar')
 
@@ -114,10 +135,12 @@ def train(train_loader, model, criterion, optimizer, epoch):
     losses = AverageMeter()  # loss
 
     start = time.time()
+    start_all = start
 
     # Batches
     for i, (images, boxes, labels, _) in enumerate(train_loader):
-        data_time.update(time.time() - start)
+        if i % print_freq == 0 and i != 0:
+            data_time.update(time.time() - start)
 
         # Move to default device
         images = images.to(device)  # (batch_size (N), 3, 300, 300)
@@ -140,21 +163,22 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # Update model
         optimizer.step()
-
         losses.update(loss.item(), images.size(0))
-        batch_time.update(time.time() - start)
-
-        start = time.time()
 
         # Print status
-        if i % print_freq == 0:
+        if i % print_freq == 0 and i != 0:
+            batch_time.update(time.time() - start)
+            start = time.time()
             print('Epoch: [{0}][{1}/{2}]\t'
-                  'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Pack200 Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data Time {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch, i, len(train_loader),
                                                                   batch_time=batch_time,
                                                                   data_time=data_time, loss=losses))
+        
     del predicted_locs, predicted_scores, images, boxes, labels  # free some memory since their histories may be stored
+    epoch_time = time.time() - start_all
+    return losses.avg , epoch_time, losses.val_list
 
 
 if __name__ == '__main__':
