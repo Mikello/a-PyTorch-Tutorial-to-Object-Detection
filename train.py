@@ -8,6 +8,14 @@ from model import SSD300, MultiBoxLoss
 from datasets import PascalVOCDataset
 from utils import *
 
+from tuned_vgg16 import VGGBase
+from tuned_resnet18 import tuned_ResNet18
+from tuned_resnet50 import tuned_ResNet50
+
+
+tuned_models = [VGGBase, tuned_ResNet18, tuned_ResNet50] # Список потдерживаемых моделей
+tuned_model = tuned_models[2] # Выберем модель ResNet18
+
 # Data parameters
 data_folder = './'  # folder with data files
 keep_difficult = True  # use objects considered difficult to detect?
@@ -48,7 +56,7 @@ def main():
 
     if os.path.exists(checkpoint) == False:
         start_epoch = 0
-        model = SSD300(n_classes=n_classes)
+        model = SSD300(n_classes, tuned_model)
         # Initialize the optimizer, with twice the default learning rate for biases, as in the original Caffe repo
         biases = list()
         not_biases = list()
