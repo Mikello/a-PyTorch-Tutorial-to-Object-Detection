@@ -70,7 +70,7 @@ def main():
         try:
             with open('./data/' + 'data.pickle', 'rb') as f:
                 data_new = pickle.load(f)
-                loss_epoch, epoch_time, loss_inter = zip(data_new)
+                loss_epoch, epoch_time, loss_inter = data_new
             print("Load history file")
         except:
             print("History file not available")
@@ -94,7 +94,6 @@ def main():
     epochs = iterations // (len(train_dataset) // 32)
     decay_lr_at = [it // (len(train_dataset) // 32) for it in decay_lr_at]
     
-    epochs = 15
     # Epochs
     for epoch in range(start_epoch, epochs):
 
