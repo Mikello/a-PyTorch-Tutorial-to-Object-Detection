@@ -14,7 +14,7 @@ from tuned_resnet50 import tuned_ResNet50
 
 
 tuned_models = [VGGBase, tuned_ResNet18, tuned_ResNet50] # Список потдерживаемых моделей
-tuned_model = tuned_models[2] # Выберем модель ResNet18
+tuned_model = tuned_models[0] # Выберем модель 
 
 # Data parameters
 data_folder = './'  # folder with data files
