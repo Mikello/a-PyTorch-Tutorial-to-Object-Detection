@@ -22,7 +22,7 @@ class AuxiliaryConvolutions(nn.Module):
         self.conv9_2 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1)  # dim. reduction because stride > 1
 
         self.conv10_1 = nn.Conv2d(256, 128, kernel_size=1, padding=0)
-        self.conv10_2 = nn.Conv2d(128, 256, kernel_size=3, padding=0)  # dim. reduction because padding = 0
+        self.conv10_2 = nn.Conv2d(128, 256, kernel_size=(3,3), stride=(2,1), padding=(0,0))  # dim. reduction because padding = 0
 
         self.conv11_1 = nn.Conv2d(256, 128, kernel_size=1, padding=0)
         self.conv11_2 = nn.Conv2d(128, 256, kernel_size=3, padding=0)  # dim. reduction because padding = 0
@@ -46,20 +46,24 @@ class AuxiliaryConvolutions(nn.Module):
         :param conv7_feats: lower-level conv7 feature map, a tensor of dimensions (N, 1024, 19, 19)
         :return: higher-level feature maps conv8_2, conv9_2, conv10_2, and conv11_2
         """
-        out = F.relu(self.conv8_1(conv7_feats))  # (N, 256, 19, 19)
-        out = F.relu(self.conv8_2(out))  # (N, 512, 10, 10)
-        conv8_2_feats = out  # (N, 512, 10, 10)
+        out = F.relu(self.conv8_1(conv7_feats))  # (N, 256, 30, 17)
+        out = F.relu(self.conv8_2(out))  # (N, 512, 15, 9)
+        conv8_2_feats = out  # (N, 512, 15, 9)
+        #print("conv8_2_feats", out.shape)
 
-        out = F.relu(self.conv9_1(out))  # (N, 128, 10, 10)
-        out = F.relu(self.conv9_2(out))  # (N, 256, 5, 5)
+        out = F.relu(self.conv9_1(out))  # (N, 128, 15, 9)
+        out = F.relu(self.conv9_2(out))  # (N, 256, 8, 5)
         conv9_2_feats = out  # (N, 256, 5, 5)
+        #print("conv9_2_feats", out.shape)
 
-        out = F.relu(self.conv10_1(out))  # (N, 128, 5, 5)
+        out = F.relu(self.conv10_1(out))  # (N, 128, 8, 5)
         out = F.relu(self.conv10_2(out))  # (N, 256, 3, 3)
         conv10_2_feats = out  # (N, 256, 3, 3)
+        #print("conv10_2_feats", out.shape)
 
         out = F.relu(self.conv11_1(out))  # (N, 128, 3, 3)
         conv11_2_feats = F.relu(self.conv11_2(out))  # (N, 256, 1, 1)
+        #print("conv11_2_feats", out.shape)
 
         # Higher-level feature maps
         return conv8_2_feats, conv9_2_feats, conv10_2_feats, conv11_2_feats
@@ -125,10 +129,10 @@ class PredictionConvolutions(nn.Module):
         """
         Forward propagation.
 
-        :param conv4_3_feats: conv4_3 feature map, a tensor of dimensions (N, 512, 38, 38)
-        :param conv7_feats: conv7 feature map, a tensor of dimensions (N, 1024, 19, 19)
-        :param conv8_2_feats: conv8_2 feature map, a tensor of dimensions (N, 512, 10, 10)
-        :param conv9_2_feats: conv9_2 feature map, a tensor of dimensions (N, 256, 5, 5)
+        :param conv4_3_feats: conv4_3 feature map, a tensor of dimensions (N, 512, 60, 34)
+        :param conv7_feats: conv7 feature map, a tensor of dimensions (N, 1024, 30, 17)
+        :param conv8_2_feats: conv8_2 feature map, a tensor of dimensions (N, 512, 15, 9)
+        :param conv9_2_feats: conv9_2 feature map, a tensor of dimensions (N, 256, 8, 5)
         :param conv10_2_feats: conv10_2 feature map, a tensor of dimensions (N, 256, 3, 3)
         :param conv11_2_feats: conv11_2 feature map, a tensor of dimensions (N, 256, 1, 1)
         :return: 8732 locations and class scores (i.e. w.r.t each prior box) for each image
@@ -136,23 +140,23 @@ class PredictionConvolutions(nn.Module):
         batch_size = conv4_3_feats.size(0)
 
         # Predict localization boxes' bounds (as offsets w.r.t prior-boxes)
-        l_conv4_3 = self.loc_conv4_3(conv4_3_feats)  # (N, 16, 38, 38)
+        l_conv4_3 = self.loc_conv4_3(conv4_3_feats)  # (N, 16, 60, 34)
         l_conv4_3 = l_conv4_3.permute(0, 2, 3,
-                                      1).contiguous()  # (N, 38, 38, 16), to match prior-box order (after .view())
+                                      1).contiguous()  # (N, 60, 34, 16), to match prior-box order (after .view())
         # (.contiguous() ensures it is stored in a contiguous chunk of memory, needed for .view() below)
-        l_conv4_3 = l_conv4_3.view(batch_size, -1, 4)  # (N, 5776, 4), there are a total 5776 boxes on this feature map
+        l_conv4_3 = l_conv4_3.view(batch_size, -1, 4)  # (N, 8160, 4), there are a total 8160 boxes on this feature map
 
-        l_conv7 = self.loc_conv7(conv7_feats)  # (N, 24, 19, 19)
-        l_conv7 = l_conv7.permute(0, 2, 3, 1).contiguous()  # (N, 19, 19, 24)
-        l_conv7 = l_conv7.view(batch_size, -1, 4)  # (N, 2166, 4), there are a total 2116 boxes on this feature map
+        l_conv7 = self.loc_conv7(conv7_feats)  # (N, 24, 30, 17)
+        l_conv7 = l_conv7.permute(0, 2, 3, 1).contiguous()  # (N, 30, 17, 24)
+        l_conv7 = l_conv7.view(batch_size, -1, 4)  # (N, 3060, 4), there are a total 3060 boxes on this feature map
 
-        l_conv8_2 = self.loc_conv8_2(conv8_2_feats)  # (N, 24, 10, 10)
-        l_conv8_2 = l_conv8_2.permute(0, 2, 3, 1).contiguous()  # (N, 10, 10, 24)
-        l_conv8_2 = l_conv8_2.view(batch_size, -1, 4)  # (N, 600, 4)
+        l_conv8_2 = self.loc_conv8_2(conv8_2_feats)  # (N, 24, 15, 9)
+        l_conv8_2 = l_conv8_2.permute(0, 2, 3, 1).contiguous()  # (N, 15, 9, 24)
+        l_conv8_2 = l_conv8_2.view(batch_size, -1, 4)  # (N, 810, 4)
 
-        l_conv9_2 = self.loc_conv9_2(conv9_2_feats)  # (N, 24, 5, 5)
-        l_conv9_2 = l_conv9_2.permute(0, 2, 3, 1).contiguous()  # (N, 5, 5, 24)
-        l_conv9_2 = l_conv9_2.view(batch_size, -1, 4)  # (N, 150, 4)
+        l_conv9_2 = self.loc_conv9_2(conv9_2_feats)  # (N, 24, 8, 5)
+        l_conv9_2 = l_conv9_2.permute(0, 2, 3, 1).contiguous()  # (N, 8, 5, 24)
+        l_conv9_2 = l_conv9_2.view(batch_size, -1, 4)  # (N, 240, 4)
 
         l_conv10_2 = self.loc_conv10_2(conv10_2_feats)  # (N, 16, 3, 3)
         l_conv10_2 = l_conv10_2.permute(0, 2, 3, 1).contiguous()  # (N, 3, 3, 16)
@@ -163,24 +167,24 @@ class PredictionConvolutions(nn.Module):
         l_conv11_2 = l_conv11_2.view(batch_size, -1, 4)  # (N, 4, 4)
 
         # Predict classes in localization boxes
-        c_conv4_3 = self.cl_conv4_3(conv4_3_feats)  # (N, 4 * n_classes, 38, 38)
+        c_conv4_3 = self.cl_conv4_3(conv4_3_feats)  # (N, 4 * n_classes, 60, 34)
         c_conv4_3 = c_conv4_3.permute(0, 2, 3,
-                                      1).contiguous()  # (N, 38, 38, 4 * n_classes), to match prior-box order (after .view())
+                                      1).contiguous()  # (N, 60, 34, 4 * n_classes), to match prior-box order (after .view())
         c_conv4_3 = c_conv4_3.view(batch_size, -1,
-                                   self.n_classes)  # (N, 5776, n_classes), there are a total 5776 boxes on this feature map
+                                   self.n_classes)  # (N, 8160, n_classes), there are a total 5776 boxes on this feature map
 
-        c_conv7 = self.cl_conv7(conv7_feats)  # (N, 6 * n_classes, 19, 19)
-        c_conv7 = c_conv7.permute(0, 2, 3, 1).contiguous()  # (N, 19, 19, 6 * n_classes)
+        c_conv7 = self.cl_conv7(conv7_feats)  # (N, 6 * n_classes, 30, 17)
+        c_conv7 = c_conv7.permute(0, 2, 3, 1).contiguous()  # (N, 30, 17, 6 * n_classes)
         c_conv7 = c_conv7.view(batch_size, -1,
-                               self.n_classes)  # (N, 2166, n_classes), there are a total 2116 boxes on this feature map
+                               self.n_classes)  # (N, 3060, n_classes), there are a total 2116 boxes on this feature map
 
-        c_conv8_2 = self.cl_conv8_2(conv8_2_feats)  # (N, 6 * n_classes, 10, 10)
-        c_conv8_2 = c_conv8_2.permute(0, 2, 3, 1).contiguous()  # (N, 10, 10, 6 * n_classes)
-        c_conv8_2 = c_conv8_2.view(batch_size, -1, self.n_classes)  # (N, 600, n_classes)
+        c_conv8_2 = self.cl_conv8_2(conv8_2_feats)  # (N, 6 * n_classes, 15, 9)
+        c_conv8_2 = c_conv8_2.permute(0, 2, 3, 1).contiguous()  # (N, 15, 9, 6 * n_classes)
+        c_conv8_2 = c_conv8_2.view(batch_size, -1, self.n_classes)  # (N, 810, n_classes)
 
-        c_conv9_2 = self.cl_conv9_2(conv9_2_feats)  # (N, 6 * n_classes, 5, 5)
-        c_conv9_2 = c_conv9_2.permute(0, 2, 3, 1).contiguous()  # (N, 5, 5, 6 * n_classes)
-        c_conv9_2 = c_conv9_2.view(batch_size, -1, self.n_classes)  # (N, 150, n_classes)
+        c_conv9_2 = self.cl_conv9_2(conv9_2_feats)  # (N, 6 * n_classes, 8, 5)
+        c_conv9_2 = c_conv9_2.permute(0, 2, 3, 1).contiguous()  # (N, 8, 5, 6 * n_classes)
+        c_conv9_2 = c_conv9_2.view(batch_size, -1, self.n_classes)  # (N, 240, n_classes)
 
         c_conv10_2 = self.cl_conv10_2(conv10_2_feats)  # (N, 4 * n_classes, 3, 3)
         c_conv10_2 = c_conv10_2.permute(0, 2, 3, 1).contiguous()  # (N, 3, 3, 4 * n_classes)
@@ -192,9 +196,9 @@ class PredictionConvolutions(nn.Module):
 
         # A total of 8732 boxes
         # Concatenate in this specific order (i.e. must match the order of the prior-boxes)
-        locs = torch.cat([l_conv4_3, l_conv7, l_conv8_2, l_conv9_2, l_conv10_2, l_conv11_2], dim=1)  # (N, 8732, 4)
+        locs = torch.cat([l_conv4_3, l_conv7, l_conv8_2, l_conv9_2, l_conv10_2, l_conv11_2], dim=1)  # (N, 12310, 4) было (N, 8732, n_classes)
         classes_scores = torch.cat([c_conv4_3, c_conv7, c_conv8_2, c_conv9_2, c_conv10_2, c_conv11_2],
-                                   dim=1)  # (N, 8732, n_classes)
+                                   dim=1)  # (N, 12310, n_classes)
 
         return locs, classes_scores
 
@@ -231,36 +235,37 @@ class SSD300(nn.Module):
         :return: 8732 locations and class scores (i.e. w.r.t each prior box) for each image
         """
         # Run VGG base network convolutions (lower level feature map generators)
-        conv4_3_feats, conv7_feats = self.base(image)  # (N, 512, 38, 38), (N, 1024, 19, 19)
+        conv4_3_feats, conv7_feats = self.base(image)  # (N, 512, 60, 34), (N, 1024, 30, 17)
 
         # Rescale conv4_3 after L2 norm
-        norm = conv4_3_feats.pow(2).sum(dim=1, keepdim=True).sqrt()  # (N, 1, 38, 38)
+        norm = conv4_3_feats.pow(2).sum(dim=1, keepdim=True).sqrt()  # (N, 1, 60, 34)
         conv4_3_feats = conv4_3_feats / norm  # (N, 512, 38, 38)
-        conv4_3_feats = conv4_3_feats * self.rescale_factors  # (N, 512, 38, 38)
+        conv4_3_feats = conv4_3_feats * self.rescale_factors  # (N, 512, 60, 34)
         # (PyTorch autobroadcasts singleton dimensions during arithmetic)
 
         # Run auxiliary convolutions (higher level feature map generators)
         conv8_2_feats, conv9_2_feats, conv10_2_feats, conv11_2_feats = \
-            self.aux_convs(conv7_feats)  # (N, 512, 10, 10),  (N, 256, 5, 5), (N, 256, 3, 3), (N, 256, 1, 1)
+            self.aux_convs(conv7_feats)  # (N, 512, 15, 9),  (N, 256, 8, 5), (N, 256, 3, 3), (N, 256, 1, 1)
+        #print(conv8_2_feats.shape, conv9_2_feats.shape, conv10_2_feats.shape, conv11_2_feats.shape)
 
         # Run prediction convolutions (predict offsets w.r.t prior-boxes and classes in each resulting localization box)
         locs, classes_scores = self.pred_convs(conv4_3_feats, conv7_feats, conv8_2_feats, conv9_2_feats, conv10_2_feats,
-                                               conv11_2_feats)  # (N, 8732, 4), (N, 8732, n_classes)
+                                               conv11_2_feats)  # (N, 12310, 4), (N, 12310, n_classes)
 
         return locs, classes_scores
 
     def create_prior_boxes(self):
         """
-        Create the 8732 prior (default) boxes for the SSD300, as defined in the paper.
+        Create the 12310 prior (default) boxes for the SSD300, as defined in the paper.
 
         :return: prior boxes in center-size coordinates, a tensor of dimensions (8732, 4)
         """
-        fmap_dims = {'conv4_3': 38,
-                     'conv7': 19,
-                     'conv8_2': 10,
-                     'conv9_2': 5,
-                     'conv10_2': 3,
-                     'conv11_2': 1}
+        fmap_dims = {'conv4_3': (60,34),
+                     'conv7': (30,17),
+                     'conv8_2': (15,9),
+                     'conv9_2': (8,5),
+                     'conv10_2': (3,3),
+                     'conv11_2': (1,1)}
 
         obj_scales = {'conv4_3': 0.1,
                       'conv7': 0.2,
@@ -281,10 +286,10 @@ class SSD300(nn.Module):
         prior_boxes = []
 
         for k, fmap in enumerate(fmaps):
-            for i in range(fmap_dims[fmap]):
-                for j in range(fmap_dims[fmap]):
-                    cx = (j + 0.5) / fmap_dims[fmap]
-                    cy = (i + 0.5) / fmap_dims[fmap]
+            for i in range(fmap_dims[fmap][0]):
+                for j in range(fmap_dims[fmap][1]):
+                    cx = (j + 0.5) / fmap_dims[fmap][0]
+                    cy = (i + 0.5) / fmap_dims[fmap][1]
 
                     for ratio in aspect_ratios[fmap]:
                         prior_boxes.append([cx, cy, obj_scales[fmap] * sqrt(ratio), obj_scales[fmap] / sqrt(ratio)])
@@ -299,8 +304,8 @@ class SSD300(nn.Module):
                                 additional_scale = 1.
                             prior_boxes.append([cx, cy, additional_scale, additional_scale])
 
-        prior_boxes = torch.FloatTensor(prior_boxes).to(device)  # (8732, 4)
-        prior_boxes.clamp_(0, 1)  # (8732, 4)
+        prior_boxes = torch.FloatTensor(prior_boxes).to(device)  # (12310, 4)
+        prior_boxes.clamp_(0, 1)  # (12310, 4)
 
         return prior_boxes
 
@@ -319,7 +324,7 @@ class SSD300(nn.Module):
         """
         batch_size = predicted_locs.size(0)
         n_priors = self.priors_cxcy.size(0)
-        predicted_scores = F.softmax(predicted_scores, dim=2)  # (N, 8732, n_classes)
+        predicted_scores = F.softmax(predicted_scores, dim=2)  # (N, 12310, n_classes)
 
         # Lists to store final predicted boxes, labels, and scores for all images
         all_images_boxes = list()
@@ -331,24 +336,25 @@ class SSD300(nn.Module):
         for i in range(batch_size):
             # Decode object coordinates from the form we regressed predicted boxes to
             decoded_locs = cxcy_to_xy(
-                gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))  # (8732, 4), these are fractional pt. coordinates
+                gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy)
+                )  # (12310, 4), these are fractional pt. coordinates
 
             # Lists to store boxes and scores for this image
             image_boxes = list()
             image_labels = list()
             image_scores = list()
 
-            max_scores, best_label = predicted_scores[i].max(dim=1)  # (8732)
+            max_scores, best_label = predicted_scores[i].max(dim=1)  # (12310)
 
             # Check for each class
             for c in range(1, self.n_classes):
                 # Keep only predicted boxes and scores where scores for this class are above the minimum score
-                class_scores = predicted_scores[i][:, c]  # (8732)
+                class_scores = predicted_scores[i][:, c]  # (12310)
                 score_above_min_score = class_scores > min_score  # torch.uint8 (byte) tensor, for indexing
                 n_above_min_score = score_above_min_score.sum().item()
                 if n_above_min_score == 0:
                     continue
-                class_scores = class_scores[score_above_min_score]  # (n_qualified), n_min_score <= 8732
+                class_scores = class_scores[score_above_min_score]  # (n_qualified), n_min_score <= 12310
                 class_decoded_locs = decoded_locs[score_above_min_score]  # (n_qualified, 4)
 
                 # Sort predicted boxes and scores by scores
@@ -434,8 +440,8 @@ class MultiBoxLoss(nn.Module):
         """
         Forward propagation.
 
-        :param predicted_locs: predicted locations/boxes w.r.t the 8732 prior boxes, a tensor of dimensions (N, 8732, 4)
-        :param predicted_scores: class scores for each of the encoded locations/boxes, a tensor of dimensions (N, 8732, n_classes)
+        :param predicted_locs: predicted locations/boxes w.r.t the 12310 prior boxes, a tensor of dimensions (N, 12310, 4)
+        :param predicted_scores: class scores for each of the encoded locations/boxes, a tensor of dimensions (N, 12310, n_classes)
         :param boxes: true  object bounding boxes in boundary coordinates, a list of N tensors
         :param labels: true object labels, a list of N tensors
         :return: multibox loss, a scalar
@@ -446,18 +452,18 @@ class MultiBoxLoss(nn.Module):
 
         assert n_priors == predicted_locs.size(1) == predicted_scores.size(1)
 
-        true_locs = torch.zeros((batch_size, n_priors, 4), dtype=torch.float).to(device)  # (N, 8732, 4)
-        true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(device)  # (N, 8732)
+        true_locs = torch.zeros((batch_size, n_priors, 4), dtype=torch.float).to(device)  # (N, 12310, 4)
+        true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(device)  # (N, 12310)
 
         # For each image
         for i in range(batch_size):
             n_objects = boxes[i].size(0)
 
             overlap = find_jaccard_overlap(boxes[i],
-                                           self.priors_xy)  # (n_objects, 8732)
+                                           self.priors_xy)  # (n_objects, 12310)
 
             # For each prior, find the object that has the maximum overlap
-            overlap_for_each_prior, object_for_each_prior = overlap.max(dim=0)  # (8732)
+            overlap_for_each_prior, object_for_each_prior = overlap.max(dim=0)  # (12310)
 
             # We don't want a situation where an object is not represented in our positive (non-background) priors -
             # 1. An object might not be the best object for all priors, and is therefore not in object_for_each_prior.
@@ -474,18 +480,18 @@ class MultiBoxLoss(nn.Module):
             overlap_for_each_prior[prior_for_each_object] = 1.
 
             # Labels for each prior
-            label_for_each_prior = labels[i][object_for_each_prior]  # (8732)
+            label_for_each_prior = labels[i][object_for_each_prior]  # (12310)
             # Set priors whose overlaps with objects are less than the threshold to be background (no object)
-            label_for_each_prior[overlap_for_each_prior < self.threshold] = 0  # (8732)
+            label_for_each_prior[overlap_for_each_prior < self.threshold] = 0  # (12310)
 
             # Store
             true_classes[i] = label_for_each_prior
 
             # Encode center-size object coordinates into the form we regressed predicted boxes to
-            true_locs[i] = cxcy_to_gcxgcy(xy_to_cxcy(boxes[i][object_for_each_prior]), self.priors_cxcy)  # (8732, 4)
+            true_locs[i] = cxcy_to_gcxgcy(xy_to_cxcy(boxes[i][object_for_each_prior]), self.priors_cxcy)  # (12310, 4)
 
         # Identify priors that are positive (object/non-background)
-        positive_priors = true_classes != 0  # (N, 8732)
+        positive_priors = true_classes != 0  # (N, 12310)
 
         # LOCALIZATION LOSS
 

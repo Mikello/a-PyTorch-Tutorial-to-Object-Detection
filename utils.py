@@ -524,7 +524,7 @@ def flip(image, boxes):
     return new_image, new_boxes
 
 
-def resize(image, boxes, dims=(300, 300), return_percent_coords=True):
+def resize(image, boxes, dims=(480, 270), return_percent_coords=True):
     """
     Resize image. For the SSD300, resize to (300, 300).
 
@@ -627,7 +627,7 @@ def transform(image, boxes, labels, difficulties, split):
             new_image, new_boxes = flip(new_image, new_boxes)
 
     # Resize image to (300, 300) - this also converts absolute boundary coordinates to their fractional form
-    new_image, new_boxes = resize(new_image, new_boxes, dims=(300, 300))
+    new_image, new_boxes = resize(new_image, new_boxes, dims=(480, 270))
 
     # Convert PIL image to Torch tensor
     new_image = FT.to_tensor(new_image)

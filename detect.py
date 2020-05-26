@@ -15,7 +15,7 @@ model = model.to(device)
 model.eval()
 
 # Transforms
-resize = transforms.Resize((300, 300))
+resize = transforms.Resize((480, 270))
 to_tensor = transforms.ToTensor()
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])
