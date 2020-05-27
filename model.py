@@ -16,16 +16,16 @@ class AuxiliaryConvolutions(nn.Module):
 
         # Auxiliary/additional convolutions on top of the VGG base
         self.conv8_1 = nn.Conv2d(1024, 256, kernel_size=1, padding=0)  # stride = 1, by default
-        self.conv8_2 = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1)  # dim. reduction because stride > 1
+        self.conv8_2 = nn.Conv2d(256, 512, kernel_size=(3,3), stride=(2,2), padding=(1,1))  # dim. reduction because stride > 1
 
         self.conv9_1 = nn.Conv2d(512, 128, kernel_size=1, padding=0)
-        self.conv9_2 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1)  # dim. reduction because stride > 1
+        self.conv9_2 = nn.Conv2d(128, 256, kernel_size=(3,3), stride=(2,2), padding=(1,1))  # dim. reduction because stride > 1
 
         self.conv10_1 = nn.Conv2d(256, 128, kernel_size=1, padding=0)
-        self.conv10_2 = nn.Conv2d(128, 256, kernel_size=(3,3), stride=(2,1), padding=(0,0))  # dim. reduction because padding = 0
+        self.conv10_2 = nn.Conv2d(128, 256, kernel_size=(4,3), stride=(1,1), padding=(0,0))  # dim. reduction because padding = 0
 
         self.conv11_1 = nn.Conv2d(256, 128, kernel_size=1, padding=0)
-        self.conv11_2 = nn.Conv2d(128, 256, kernel_size=3, padding=0)  # dim. reduction because padding = 0
+        self.conv11_2 = nn.Conv2d(128, 256, kernel_size=(5,3), padding=(0,0))  # dim. reduction because padding = 0
 
         # Initialize convolutions' parameters
         self.init_conv2d()
@@ -47,23 +47,24 @@ class AuxiliaryConvolutions(nn.Module):
         :return: higher-level feature maps conv8_2, conv9_2, conv10_2, and conv11_2
         """
         out = F.relu(self.conv8_1(conv7_feats))  # (N, 256, 30, 17)
+        #print("conv8_1_feats", out.shape)
         out = F.relu(self.conv8_2(out))  # (N, 512, 15, 9)
         conv8_2_feats = out  # (N, 512, 15, 9)
         #print("conv8_2_feats", out.shape)
 
         out = F.relu(self.conv9_1(out))  # (N, 128, 15, 9)
         out = F.relu(self.conv9_2(out))  # (N, 256, 8, 5)
-        conv9_2_feats = out  # (N, 256, 5, 5)
+        conv9_2_feats = out  # (N, 256, 8, 5)
         #print("conv9_2_feats", out.shape)
 
         out = F.relu(self.conv10_1(out))  # (N, 128, 8, 5)
-        out = F.relu(self.conv10_2(out))  # (N, 256, 3, 3)
-        conv10_2_feats = out  # (N, 256, 3, 3)
+        out = F.relu(self.conv10_2(out))  # (N, 256, 5, 3)
+        conv10_2_feats = out  # (N, 256, 5, 3)
         #print("conv10_2_feats", out.shape)
 
-        out = F.relu(self.conv11_1(out))  # (N, 128, 3, 3)
+        out = F.relu(self.conv11_1(out))  # (N, 128, 5, 3)
         conv11_2_feats = F.relu(self.conv11_2(out))  # (N, 256, 1, 1)
-        #print("conv11_2_feats", out.shape)
+        #print("conv11_2_feats", conv11_2_feats.shape)
 
         # Higher-level feature maps
         return conv8_2_feats, conv9_2_feats, conv10_2_feats, conv11_2_feats
@@ -264,7 +265,7 @@ class SSD300(nn.Module):
                      'conv7': (30,17),
                      'conv8_2': (15,9),
                      'conv9_2': (8,5),
-                     'conv10_2': (3,3),
+                     'conv10_2': (5,3),
                      'conv11_2': (1,1)}
 
         obj_scales = {'conv4_3': 0.1,
@@ -456,8 +457,10 @@ class MultiBoxLoss(nn.Module):
         true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(device)  # (N, 12310)
 
         # For each image
+        n_objects_sum = []
         for i in range(batch_size):
             n_objects = boxes[i].size(0)
+            n_objects_sum.append(n_objects)
 
             overlap = find_jaccard_overlap(boxes[i],
                                            self.priors_xy)  # (n_objects, 12310)
@@ -474,7 +477,7 @@ class MultiBoxLoss(nn.Module):
             _, prior_for_each_object = overlap.max(dim=1)  # (N_o)
 
             # Then, assign each object to the corresponding maximum-overlap-prior. (This fixes 1.)
-            object_for_each_prior[prior_for_each_object] = torch.LongTensor(range(n_objects)).to(device)
+            object_for_each_prior[prior_for_each_object] = torch.LongTensor(range(n_objects)).to(device)# (12310)
 
             # To ensure these priors qualify, artificially give them an overlap of greater than 0.5. (This fixes 2.)
             overlap_for_each_prior[prior_for_each_object] = 1.
@@ -492,6 +495,7 @@ class MultiBoxLoss(nn.Module):
 
         # Identify priors that are positive (object/non-background)
         positive_priors = true_classes != 0  # (N, 12310)
+        #print(n_objects_sum, positive_priors.sum(dim=1))
 
         # LOCALIZATION LOSS
 
@@ -532,5 +536,9 @@ class MultiBoxLoss(nn.Module):
         conf_loss = (conf_loss_hard_neg.sum() + conf_loss_pos.sum()) / n_positives.sum().float()  # (), scalar
 
         # TOTAL LOSS
-
+        '''
+        a = (conf_loss_hard_neg.sum() / n_positives.sum().float()).detach().cpu().numpy()
+        b = (conf_loss_pos.sum() / n_positives.sum().float()).detach().cpu().numpy()
+        print("neg ",a , "  pos", b, " loc_loss", loc_loss.detach().cpu())
+        '''
         return conf_loss + self.alpha * loc_loss
