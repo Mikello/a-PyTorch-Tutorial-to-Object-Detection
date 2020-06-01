@@ -16,13 +16,13 @@ class AuxiliaryConvolutions(nn.Module):
 
         # Auxiliary/additional convolutions on top of the VGG base
         self.conv8_1 = nn.Conv2d(1024, 256, kernel_size=1, padding=0)  # stride = 1, by default
-        self.conv8_2 = nn.Conv2d(256, 512, kernel_size=(3,3), stride=(2,2), padding=(1,1))  # dim. reduction because stride > 1
+        self.conv8_2 = nn.Conv2d(256, 512, kernel_size=(2,3), stride=(2,2), padding=(1,1))  # dim. reduction because stride > 1
 
         self.conv9_1 = nn.Conv2d(512, 128, kernel_size=1, padding=0)
-        self.conv9_2 = nn.Conv2d(128, 256, kernel_size=(3,3), stride=(2,2), padding=(1,1))  # dim. reduction because stride > 1
+        self.conv9_2 = nn.Conv2d(128, 256, kernel_size=(2,3), stride=(2,2), padding=(1,1))  # dim. reduction because stride > 1
 
         self.conv10_1 = nn.Conv2d(256, 128, kernel_size=1, padding=0)
-        self.conv10_2 = nn.Conv2d(128, 256, kernel_size=(4,3), stride=(1,1), padding=(0,0))  # dim. reduction because padding = 0
+        self.conv10_2 = nn.Conv2d(128, 256, kernel_size=(3,3), stride=(2,1), padding=(1,0))  # dim. reduction because padding = 0
 
         self.conv11_1 = nn.Conv2d(256, 128, kernel_size=1, padding=0)
         self.conv11_2 = nn.Conv2d(128, 256, kernel_size=(5,3), padding=(0,0))  # dim. reduction because padding = 0
@@ -48,16 +48,16 @@ class AuxiliaryConvolutions(nn.Module):
         """
         out = F.relu(self.conv8_1(conv7_feats))  # (N, 256, 30, 17)
         #print("conv8_1_feats", out.shape)
-        out = F.relu(self.conv8_2(out))  # (N, 512, 15, 9)
-        conv8_2_feats = out  # (N, 512, 15, 9)
+        out = F.relu(self.conv8_2(out))  # (N, 512, 16, 9)
+        conv8_2_feats = out  # (N, 512, 16, 9)
         #print("conv8_2_feats", out.shape)
 
-        out = F.relu(self.conv9_1(out))  # (N, 128, 15, 9)
-        out = F.relu(self.conv9_2(out))  # (N, 256, 8, 5)
-        conv9_2_feats = out  # (N, 256, 8, 5)
+        out = F.relu(self.conv9_1(out))  # (N, 128, 16, 9)
+        out = F.relu(self.conv9_2(out))  # (N, 256, 9, 5)
+        conv9_2_feats = out  # (N, 256, 9, 5)
         #print("conv9_2_feats", out.shape)
 
-        out = F.relu(self.conv10_1(out))  # (N, 128, 8, 5)
+        out = F.relu(self.conv10_1(out))  # (N, 128, 9, 5)
         out = F.relu(self.conv10_2(out))  # (N, 256, 5, 3)
         conv10_2_feats = out  # (N, 256, 5, 3)
         #print("conv10_2_feats", out.shape)
@@ -263,8 +263,8 @@ class SSD300(nn.Module):
         """
         fmap_dims = {'conv4_3': (60,34),
                      'conv7': (30,17),
-                     'conv8_2': (15,9),
-                     'conv9_2': (8,5),
+                     'conv8_2': (16,9),
+                     'conv9_2': (9,5),
                      'conv10_2': (5,3),
                      'conv11_2': (1,1)}
 
@@ -293,7 +293,7 @@ class SSD300(nn.Module):
                     cy = (i + 0.5) / fmap_dims[fmap][1]
 
                     for ratio in aspect_ratios[fmap]:
-                        prior_boxes.append([cx, cy, obj_scales[fmap] * sqrt(ratio), obj_scales[fmap] / sqrt(ratio)])
+                        prior_boxes.append([cx, cy, obj_scales[fmap] * sqrt(ratio)*3/4, obj_scales[fmap] / sqrt(ratio)])
 
                         # For an aspect ratio of 1, use an additional prior whose scale is the geometric mean of the
                         # scale of the current feature map and the scale of the next feature map
@@ -303,7 +303,7 @@ class SSD300(nn.Module):
                             # For the last feature map, there is no "next" feature map
                             except IndexError:
                                 additional_scale = 1.
-                            prior_boxes.append([cx, cy, additional_scale, additional_scale])
+                            prior_boxes.append([cx, cy, additional_scale*3/4, additional_scale])
 
         prior_boxes = torch.FloatTensor(prior_boxes).to(device)  # (12310, 4)
         prior_boxes.clamp_(0, 1)  # (12310, 4)

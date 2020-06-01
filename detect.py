@@ -40,7 +40,10 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     image = image.to(device)
 
     # Forward prop.
-    predicted_locs, predicted_scores = model(image.unsqueeze(0))
+    start = time.time()
+    for i in range(100):
+        predicted_locs, predicted_scores = model(image.unsqueeze(0))
+    print(time.time()-start)
 
     # Detect objects in SSD output
     det_boxes, det_labels, det_scores = model.detect_objects(predicted_locs, predicted_scores, min_score=min_score,
@@ -89,7 +92,7 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
         textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
                             box_location[1]]
         draw.rectangle(xy=textbox_location, fill=label_color_map[det_labels[i]])
-        draw.text(xy=text_location, text=det_labels[i].upper(), fill='white',
+        draw.text(xy=text_location, text=det_labels[i].upper() + str(det_scores[0][i].detach().to('cpu').numpy()), fill='white',
                   font=font)
     del draw
 
@@ -97,7 +100,7 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     
 
 if __name__ == '__main__':
-    img_path = './img/000069.jpg'
+    img_path = './img/22.jpg'
     original_image = Image.open(img_path, mode='r')
     original_image = original_image.convert('RGB')
     detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200).show()
